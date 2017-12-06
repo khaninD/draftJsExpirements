@@ -124,6 +124,8 @@ class SelectingFormValuesForm extends Component {
         return;
       }
       if(timeToSend !== 'Invalid date') {
+        //onChange(timeToSend);
+        //@TODO что за пиздец
         if (!propValue) {
           onChange(timeToSend)
         } else if(!anotherDate){
@@ -137,26 +139,32 @@ class SelectingFormValuesForm extends Component {
 
   handleInputChange(e) {
     let {target: {value}} = e;
-    let inputMask;
-    if (value.length <= 5 ) {
-      inputMask = '99.99';
-    } else {
-      inputMask = '99.99.9999';
+    const now = moment();
+    let inputMask = value.length <= 5 ? '99.99' : '99.99.9999';
+    let month = false;
+    let year = '';
+    const rightValue = moment(value, 'DD.MM', true).isValid();
+    // получаем месяц
+    if (rightValue) {
+      month = Number(value.slice(3, 5));
     }
-    const isMonthFormat = inputMask !== '99.99.9999';
-    const month = moment(value, 'DD.MM', isMonthFormat).isValid() ? moment(value, 'DD.MM').month() : false;
-    let year = month !== false && month !== moment().month() ? `.${moment().year() + 1}` : '';
-    const checkMask = !!year;
-    if (value.length > 6) {
-      year = '';
+    if (month) {
+      if (inputMask === '99.99') {
+        const isNowMonth = month === now.month() + 1;
+        value += isNowMonth ? '' : `.${now.year() + 1}`;
+        inputMask = '99.99.9999';
+      } else {
+        if (value.length === 5) {
+          value += `.${now.year() + 1}`;
+        }
+      }
     }
-    if (value.length === 5) {
-      year = moment().year() + 1;
-    }
-
+    console.table({
+      month
+    });
     this.setState({
-      stateInputValue: `${value}${year}`,
-      inputMask: checkMask ? '99.99.9999' : '99.99'
+      stateInputValue: value,
+      inputMask
     }, () => {
       this.dateInput.querySelector('input').focus();
     })
@@ -208,9 +216,9 @@ class SelectingFormValuesForm extends Component {
     const {anotherDate, stateInputValue, currentValue, beforeMoment, onlyShow, inputMask} = this.state;
     const unixValue = moment.unix(value);
     const isEmptyLine = value === '';
-    let valueDate = !isEmptyLine ? unixValue.format('D-MMM-dddd') : 'Опубликовать сейчас';
-    let valueHour = !isEmptyLine ? unixValue.hour() : '';
-    let valueMin = !isEmptyLine ? unixValue.minute() : '';
+    const valueDate = !isEmptyLine ? unixValue.format('D-MMM-dddd') : 'Опубликовать сейчас';
+    const valueHour = !isEmptyLine ? unixValue.hour() : '';
+    const valueMin = !isEmptyLine ? unixValue.minute() : '';
     const isValidDate = value !== 'Invalid date';
     console.table({
       value,
@@ -233,16 +241,12 @@ class SelectingFormValuesForm extends Component {
           <FormControl componentClass="select" value={valueDate} onChange={(e) => this.handleChange(e)}>
             {this.items.map((item, index) => <option value={item}>{item}</option>)}
           </FormControl> : anotherDate ?
-            <div ref = {(input) => this.dateInput = input}>
-              <FormControl
+              <div ref = {(input) => this.dateInput = input}><FormControl
                 value = {stateInputValue}
                 onChange={(e) => this.handleInputChange(e)}
                 onBlur={(e) => this.handleBlur(e)}
-                mask={inputMask}
                 placeholder="DD.MM"
-                maskChar = {null}
-              />
-            </div> : null}
+              /></div> : null}
         {!isEmptyLine && isValidDate ?
           <div>
             <FormControl componentClass="select" value={valueHour} onChange={(e) => this.handleChangeTime(e, 'h')}>
