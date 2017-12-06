@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { FormGroup, ControlLabel, FormControl } from 'react-bootstrap';
-import InputMask from 'react-input-mask';
+import classnames from 'classnames';
 import moment from 'moment';
 // константы классов
 const selectDateCN = 'date-time-select__select-date';
@@ -116,6 +116,7 @@ class SelectingFormValuesForm extends Component {
       const h = propValue &&  !isInvalidDate? time.hour() : moment().hour() + 1;
       const m = propValue && !isInvalidDate? time.minutes() : moment().minutes();
       const timeToSend = Number(moment(value, 'DD.MM.YYYY').hour(h).minute(m).format('X'));
+      // @TODO lol ;)))
       const unixTimeToSend = moment.unix(timeToSend).format('DD.MM.YYYY');
       const dateFormate = inputMask === '99.99.9999' ? 'DD.MM.YYYY' : 'DD.MM';
       const checkTime =  moment(value, dateFormate, true).isValid();
@@ -139,6 +140,7 @@ class SelectingFormValuesForm extends Component {
 
   handleInputChange(e) {
     let {target: {value}} = e;
+    const {onChange, value: propValue} = this.props;
     const now = moment();
     let inputMask = value.length <= 5 ? '99.99' : '99.99.9999';
     let month = false;
@@ -159,14 +161,29 @@ class SelectingFormValuesForm extends Component {
         }
       }
     }
-    console.table({
-      month
-    });
+    // @TODO пиздец
+    const time = moment.unix(propValue);
+    const isInvalidDate = propValue === 'Invalid date';
+    const h = propValue &&  !isInvalidDate? time.hour() : moment().hour() + 1;
+    const m = propValue && !isInvalidDate? time.minutes() : moment().minutes();
+    const timeToSend = Number(moment(value, 'DD.MM.YYYY').hour(h).minute(m).format('X'));
+    const unixTimeToSend = moment.unix(timeToSend).format('DD.MM.YYYY');
+    const dateFormate = inputMask === '99.99.9999' ? 'DD.MM.YYYY' : 'DD.MM';
+    const checkTime =  moment(value, dateFormate, true).isValid();
     this.setState({
       stateInputValue: value,
       inputMask
     }, () => {
       this.dateInput.querySelector('input').focus();
+      if (!checkTime) {
+        onChange('Invalid date');
+      } else {
+        onChange(timeToSend);
+      }
+      /*
+      console.log(moment(value, format).format('X'));
+      onChange(isValid ? Number(moment(value, format).format('X')) : 'Invalid date');
+      */
     })
   }
 
@@ -230,6 +247,7 @@ class SelectingFormValuesForm extends Component {
       stateInputValue,
       currentValue,
       isEmptyLine,
+      isValidDate,
       currentValueFormat: moment.unix(currentValue).format(),
       beforeMoment,
       inputMask
