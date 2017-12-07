@@ -94,8 +94,6 @@ class SelectingFormValuesForm extends Component {
       const unixTime = moment.unix(propsValue);
       const date = moment(value, 'DD-MM-YYYY');
       const time = this.correctTime(value, true, unixTime);
-      console.log(time);
-      debugger;
       const result = moment(value, 'DD-MM-YYYY').date(date.date()).hour(time.hour).minute(time.min).unix();
       this.setState({
         currentValue: result,
@@ -110,7 +108,8 @@ class SelectingFormValuesForm extends Component {
     if (value === 'Другая дата') {
       this.setState({
         anotherDate: true,
-        showTime: !!currentValue
+        showTime: !!currentValue,
+        currentValue: currentValue ? currentValue : moment().unix()
       }, () => {
         this.dateInput.querySelector('input').focus();
       });
@@ -186,8 +185,8 @@ class SelectingFormValuesForm extends Component {
     const unixFormat = moment.unix(isValidDate ? propValue : currentValue);
     const time = type === 'h' ? unixFormat.hour(Number(value)) : unixFormat.minute(Number(value));
     this.setState({
-      currentValue: Number(time.format('X'))
-    }, () => isValidDate ? onChange(Number(time.format('X'))) : 'Invalid date');
+      currentValue: time.unix()
+    }, () => isValidDate ? onChange(time.unix()) : 'Invalid date');
   }
 
   getNumbers(type) {
@@ -243,7 +242,7 @@ class SelectingFormValuesForm extends Component {
     const format = value.length < 6 ? 'DD.MM' : 'DD.MM.YYYY';
     return moment(value, format).unix();
   }
-
+  // @TODO лучше бы если бы она возвраща время в unix формате
   correctTime(value, checkBeforeTime = false, unixTime) {
     const now = moment();
     const isNowDay = value === now.format('D-MMM-dddd');
@@ -289,20 +288,8 @@ class SelectingFormValuesForm extends Component {
     const unixValue = moment.unix(value);
     const currentUnixValue = moment.unix(currentValue);
     const valueDate = value && isValidDate ? unixValue.format('D-MMM-dddd') : value === '' ? 'Опубликовать сейчас' : currentUnixValue.format('D-MMM-dddd');
-    const valueHour = value && isValidDate ? unixValue.hour() : moment.unix(currentValue).hour();
-    const valueMin = value && isValidDate ? unixValue.minute() : moment.unix(currentValue).minute();
-    // @TODO здесь должна быть логика учитывающая час при > 23:00
-    // @TODO здесь эта логика не нужна, зачем она???
-    /*
-    if (isValidDate) {
-      //@TODO здесь пересмотреть логику возможно now.hour можно вынести в функцию correctTime
-      valueHour = value ? unixValue.hour() : now.hour() + 1;
-      valueMin = value ? unixValue.minute() : now.minutes();
-    } else {
-      valueHour = h;
-      valueMin = m;
-    }
-    */
+    let valueHour = value && isValidDate ? unixValue.hour() : moment.unix(currentValue).hour();
+    let valueMin = value && isValidDate ? unixValue.minute() : moment.unix(currentValue).minute();
     const timeClass = classnames({
       'time-select': true,
       'hidden': !showTime
