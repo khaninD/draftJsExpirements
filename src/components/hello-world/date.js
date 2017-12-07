@@ -120,11 +120,9 @@ class SelectingFormValuesForm extends Component {
       // @TODO здесь исправить +1 на более сложную логику
       const time = moment.unix(propValue);
       const isInvalidDate = propValue === 'Invalid date';
-      const h = propValue &&  !isInvalidDate? time.hour() : moment().hour() + 1;
+      const h = propValue && !isInvalidDate? time.hour() : moment().hour() + 1;
       const m = propValue && !isInvalidDate? time.minutes() : moment().minutes();
       const timeToSend = Number(moment(value, 'DD.MM.YYYY').hour(h).minute(m).format('X'));
-      // @TODO lol ;)))
-      const unixTimeToSend = moment.unix(timeToSend).format('DD.MM.YYYY');
       const dateFormate = inputMask === '99.99.9999' ? 'DD.MM.YYYY' : 'DD.MM';
       const checkTime =  moment(value, dateFormate, true).isValid();
       if (!checkTime) {
@@ -179,7 +177,6 @@ class SelectingFormValuesForm extends Component {
     const h = propValue &&  !isInvalidDate? time.hour() : moment().hour() + 1;
     const m = propValue && !isInvalidDate? time.minutes() : moment().minutes();
     const timeToSend = Number(moment(value, 'DD.MM.YYYY').hour(h).minute(m).format('X'));
-    const unixTimeToSend = moment.unix(timeToSend).format('DD.MM.YYYY');
     const dateFormate = inputMask === '99.99.9999' ? 'DD.MM.YYYY' : 'DD.MM';
     const checkTime =  moment(value, dateFormate, true).isValid();
     this.setState({
@@ -188,16 +185,6 @@ class SelectingFormValuesForm extends Component {
       showTime: showTime ? true : month ? true : false
     }, () => {
       this.dateInput.querySelector('input').focus();
-      /*
-      if (!checkTime) {
-        onChange('Invalid date');
-      } else {
-        onChange(timeToSend);
-      }
-      /*
-      console.log(moment(value, format).format('X'));
-      onChange(isValid ? Number(moment(value, format).format('X')) : 'Invalid date');
-      */
     })
   }
 
@@ -210,10 +197,13 @@ class SelectingFormValuesForm extends Component {
     if (propValue !== 'Invalid date') {
       if (!anotherDate) {
         this.setState({
-          currentValue: Number(time.format('X'))
+          currentValue: Number(time.format('X')),
+          [type]: false
         }, () => onChange(Number(time.format('X'))));
       } else {
-        onChange(Number(time.format('X')))
+        this.setState({
+          [type]: false
+        }, () => onChange(Number(time.format('X'))))
       }
     } else {
       this.setState({
