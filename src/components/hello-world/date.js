@@ -55,6 +55,8 @@ class SelectingFormValuesForm extends Component {
   handleChange(e) {
     const {onChange, value: propsValue} = this.props;
     const {target: {value}} = e;
+    const {currentValue} = this.state;
+    //@TODO здесь нужно отрефакторить слишком много DRY
     // для кейса: переход с Опубликовать сейчас на дату
     if (propsValue === '' && value !== 'Другая дата') {
       const isNowDay = value === moment().format('D-MMM-dddd');
@@ -68,14 +70,16 @@ class SelectingFormValuesForm extends Component {
       }
       const time = moment(value, 'DD-MM-YYYY').hour(currentHour).minute(currentMinutes).format('X');
       this.setState({
-        currentValue: Number(time)
+        currentValue: Number(time),
+        showTime: true
       }, () => onChange(Number(time)));
       return;
     }
 
     if (value && value === 'Опубликовать сейчас') {
       this.setState({
-        currentValue: ''
+        currentValue: '',
+        showTime: false
       }, () => onChange(''));
     } else if (value && value !== 'Другая дата') {
       //@TODO пересмотреть эту ветку
@@ -87,11 +91,13 @@ class SelectingFormValuesForm extends Component {
       const m = (isNowDay && unixTime.minutes() < moment().minutes()) ? moment().minutes() : unixTime.minute();
       const result = Number(moment(value, 'DD-MM-YYYY').date(date.date()).hour(h).minute(m).format('X'));
       this.setState({
-        currentValue: result
+        currentValue: result,
+        showTime: true
       }, () => onChange(result));
     } else if (value === 'Другая дата') {
       this.setState({
-        anotherDate: true
+        anotherDate: true,
+        showTime: !!currentValue
       }, () => {
         this.dateInput.querySelector('input').focus();
       })
@@ -104,7 +110,8 @@ class SelectingFormValuesForm extends Component {
     const {anotherDate, currentValue, inputMask} = this.state;
     if (!value) {
       this.setState({
-        anotherDate: false
+        anotherDate: false,
+        showTime: !!currentValue
       }, () => {
         onChange(currentValue ? currentValue : '')
       });
@@ -121,14 +128,17 @@ class SelectingFormValuesForm extends Component {
       const dateFormate = inputMask === '99.99.9999' ? 'DD.MM.YYYY' : 'DD.MM';
       const checkTime =  moment(value, dateFormate, true).isValid();
       if (!checkTime) {
-        onChange('Invalid date');
-        return;
+        this.setState({
+          h,
+          m
+        }, () => {
+          onChange('Invalid date');
+          return;
+        });
       }
       if(timeToSend !== 'Invalid date') {
-        //onChange(timeToSend);
-        //@TODO что за пиздец
         if (!propValue) {
-          onChange(timeToSend)
+          onChange(timeToSend);
         } else if(!anotherDate){
           onChange(timeToSend)
         } else {
@@ -141,6 +151,7 @@ class SelectingFormValuesForm extends Component {
   handleInputChange(e) {
     let {target: {value}} = e;
     const {onChange, value: propValue} = this.props;
+    const {showTime} = this.state;
     const now = moment();
     let inputMask = value.length <= 5 ? '99.99' : '99.99.9999';
     let month = false;
@@ -162,6 +173,7 @@ class SelectingFormValuesForm extends Component {
       }
     }
     // @TODO пиздец
+    // @TODO можно убрать inputMask из state и проверять 1 строчкой
     const time = moment.unix(propValue);
     const isInvalidDate = propValue === 'Invalid date';
     const h = propValue &&  !isInvalidDate? time.hour() : moment().hour() + 1;
@@ -172,9 +184,11 @@ class SelectingFormValuesForm extends Component {
     const checkTime =  moment(value, dateFormate, true).isValid();
     this.setState({
       stateInputValue: value,
-      inputMask
+      inputMask,
+      showTime: showTime ? true : month ? true : false
     }, () => {
       this.dateInput.querySelector('input').focus();
+      /*
       if (!checkTime) {
         onChange('Invalid date');
       } else {
@@ -201,6 +215,10 @@ class SelectingFormValuesForm extends Component {
       } else {
         onChange(Number(time.format('X')))
       }
+    } else {
+      this.setState({
+        [type]: value
+      })
     }
   }
 
@@ -230,13 +248,33 @@ class SelectingFormValuesForm extends Component {
 
   render() {
     const {value, placeholder} = this.props;
-    const {anotherDate, stateInputValue, currentValue, beforeMoment, onlyShow, inputMask} = this.state;
+    const {
+      anotherDate,
+      stateInputValue,
+      currentValue,
+      beforeMoment,
+      onlyShow,
+      showTime,
+      h,
+      m
+    } = this.state;
+    let valueHour;
+    let valueMin;
+    const now = moment();
     const unixValue = moment.unix(value);
-    const isEmptyLine = value === '';
-    const valueDate = !isEmptyLine ? unixValue.format('D-MMM-dddd') : 'Опубликовать сейчас';
-    const valueHour = !isEmptyLine ? unixValue.hour() : '';
-    const valueMin = !isEmptyLine ? unixValue.minute() : '';
-    const isValidDate = value !== 'Invalid date';
+    const valueDate = value ? unixValue.format('D-MMM-dddd') : 'Опубликовать сейчас';
+    // @TODO здесь должна быть логика учитывающая час при > 23:00
+    if (value !== 'Invalid date') {
+      valueHour = value ? unixValue.hour() : now.hour() + 1;
+      valueMin = value ? unixValue.minute() : now.minutes();
+    } else {
+      valueHour = h;
+      valueMin = m;
+    }
+    const timeClass = classnames({
+      'time-select': true,
+      'hidden': !showTime
+    });
     console.table({
       value,
       format: moment.unix(value).format(),
@@ -246,11 +284,8 @@ class SelectingFormValuesForm extends Component {
       anotherDate,
       stateInputValue,
       currentValue,
-      isEmptyLine,
-      isValidDate,
       currentValueFormat: moment.unix(currentValue).format(),
-      beforeMoment,
-      inputMask
+      beforeMoment
     });
     return (
       <FormGroup>
@@ -265,15 +300,14 @@ class SelectingFormValuesForm extends Component {
                 onBlur={(e) => this.handleBlur(e)}
                 placeholder="DD.MM"
               /></div> : null}
-        {!isEmptyLine && isValidDate ?
-          <div>
+          <div className={timeClass}>
             <FormControl componentClass="select" value={valueHour} onChange={(e) => this.handleChangeTime(e, 'h')}>
               {this.getNumbers('hours').map((item, index) => <option value={item < 10 ? item[1] : item}>{item}</option>)}
             </FormControl>
             <FormControl componentClass="select" value={valueMin} onChange={(e) => this.handleChangeTime(e, 'm')}>
               {this.getNumbers('minutes').map((item, index) => <option value={item < 10 ? item[1] : item}>{item}</option>)}
             </FormControl>
-          </div> : null} </div> : null}
+          </div></div> : null}
       </FormGroup>
     )
   }
