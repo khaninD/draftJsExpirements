@@ -1,12 +1,12 @@
 import React, { Component } from 'react';
 import SelectingFormValuesForm from './date.js';
-
+import moment from 'moment';
 
 class Root extends Component {
   constructor(props) {
     super();
     this.state = {
-      value:''
+      value: moment().add(2, 'd').unix()
     }
   }
 

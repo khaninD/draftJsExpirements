@@ -20,7 +20,7 @@ class SelectingFormValuesForm extends Component {
     this.state = {
       anotherDate: false,
       stateInputValue: '',
-      inputMask: '99.99'
+      isValidDate: true
     };
     function getNextDates() {
       let now = moment();
@@ -34,21 +34,30 @@ class SelectingFormValuesForm extends Component {
 
   componentDidMount() {
     const {value} = this.props;
-    const unixValue = value && moment.unix(value);
+    if (typeof value !== 'number') {
+      throw('timestamp олжен быть числом!!!')
+    }
+    const unixValue = moment.unix(value);
+    if (!unixValue.isValid()) {
+      throw('Что-то пошло не так, так как не удалось провалидировать timeStamp')
+    }
+    // проверка на время 12 00
+    const isTargetTime = unixValue.hours() === 12 && unixValue.minutes() === 0;
     // логика для постов пришедших ранее чем сейчас
-    const onlyShow = unixValue && moment(unixValue).isBefore(moment());
+    const onlyShow = unixValue && (moment(unixValue).isBefore(moment()) && !isTargetTime);
     // логика для постов пришедших позже чем 7 дней от текущей даты
-    const anotherDate = unixValue && moment(unixValue).isAfter(moment().add(7, 'd'));
+    const anotherDate = unixValue && moment(unixValue).isAfter(moment().add(6, 'd'));
     // текст для title
     const beforeMoment = onlyShow ? `: ${unixValue.format('D-MMM-dddd')}` : '';
     // текст для постов пришедших позже 7 дней чем сейчас
-    const stateInputValue = anotherDate ? moment.unix(value).format('DD.MM.YYYY') : '';
+    const stateInputValue = anotherDate ? moment.unix(value).format('DD.MM') : '';
     this.setState({
       currentValue: !anotherDate ? value : '',
       anotherDate,
       onlyShow,
       beforeMoment,
-      stateInputValue
+      stateInputValue,
+      showTime: !!anotherDate || !onlyShow
     })
   }
 
@@ -56,94 +65,75 @@ class SelectingFormValuesForm extends Component {
     const {onChange, value: propsValue} = this.props;
     const {target: {value}} = e;
     const {currentValue} = this.state;
-    //@TODO здесь нужно отрефакторить слишком много DRY
-    // для кейса: переход с Опубликовать сейчас на дату
+
+    // для кейса: переход с ОПУБЛИКОВАТЬ СЕЙЧАС на какую нибудь дату
     if (propsValue === '' && value !== 'Другая дата') {
-      const isNowDay = value === moment().format('D-MMM-dddd');
-      // кейс когда время суток 23 часа
-      const checkHour = moment().hour() + 1 < 24;
-      let currentHour = moment().hour()+1;
-      let currentMinutes = moment().minutes();
-      if (isNowDay) {
-        currentHour = checkHour ? moment().hour()+1 : 23;
-        currentMinutes = checkHour ? currentMinutes : 59;
-      }
-      const time = moment(value, 'DD-MM-YYYY').hour(currentHour).minute(currentMinutes).format('X');
+      // орректируем время: часы и минуты в зависимости от условий момента
+      const currentTime = this.correctTime(value);
+      const time = moment(value, 'DD-MM-YYYY').hour(currentTime.hour).minute(currentTime.min).unix();
       this.setState({
-        currentValue: Number(time),
+        currentValue: time,
         showTime: true
-      }, () => onChange(Number(time)));
+      }, () => onChange(time));
       return;
     }
 
-    if (value && value === 'Опубликовать сейчас') {
+    // переход на ОПУБЛИКОВАТЬ СЕЙЧАС
+    if (value === 'Опубликовать сейчас') {
       this.setState({
         currentValue: '',
         showTime: false
-      }, () => onChange(''));
-    } else if (value && value !== 'Другая дата') {
-      //@TODO пересмотреть эту ветку
+      }, () => {
+        onChange('');
+      });
+      return
+    }
+
+    // переход с ДАТЫ на ДАТУ
+    if (value !== 'Другая дата') {
       const unixTime = moment.unix(propsValue);
       const date = moment(value, 'DD-MM-YYYY');
-      // для кейса когда выбираем текущий день, и время указанное в timestamp уже прошло
-      const isNowDay = value === moment().format('D-MMM-dddd');
-      const h = (isNowDay &&  unixTime.hours() < moment().hours()) ? moment().hours() : unixTime.hour();
-      const m = (isNowDay && unixTime.minutes() < moment().minutes()) ? moment().minutes() : unixTime.minute();
-      const result = Number(moment(value, 'DD-MM-YYYY').date(date.date()).hour(h).minute(m).format('X'));
+      const time = this.correctTime(value, true, unixTime);
+      console.log(time);
+      debugger;
+      const result = moment(value, 'DD-MM-YYYY').date(date.date()).hour(time.hour).minute(time.min).unix();
       this.setState({
         currentValue: result,
         showTime: true
-      }, () => onChange(result));
-    } else if (value === 'Другая дата') {
+      }, () => {
+        onChange(result);
+      });
+      return
+    }
+
+    // переход на ДРУГАЯ ДАТА
+    if (value === 'Другая дата') {
       this.setState({
         anotherDate: true,
         showTime: !!currentValue
       }, () => {
         this.dateInput.querySelector('input').focus();
-      })
+      });
     }
   }
 
   handleBlur(e) {
     const {target: {value}} = e;
-    const {onChange, value: propValue} = this.props;
-    const {anotherDate, currentValue, inputMask} = this.state;
+    const {onChange} = this.props;
+    const {currentValue} = this.state;
     if (!value) {
       this.setState({
         anotherDate: false,
         showTime: !!currentValue
       }, () => {
-        onChange(currentValue ? currentValue : '')
+        onChange(currentValue ? currentValue : '');
       });
-    } else {
-      // @TODO здесь корявая логика с propValue...
-      // @TODO здесь исправить +1 на более сложную логику
-      const time = moment.unix(propValue);
-      const isInvalidDate = propValue === 'Invalid date';
-      const h = propValue && !isInvalidDate? time.hour() : moment().hour() + 1;
-      const m = propValue && !isInvalidDate? time.minutes() : moment().minutes();
-      const timeToSend = Number(moment(value, 'DD.MM.YYYY').hour(h).minute(m).format('X'));
-      const dateFormate = inputMask === '99.99.9999' ? 'DD.MM.YYYY' : 'DD.MM';
-      const checkTime =  moment(value, dateFormate, true).isValid();
-      if (!checkTime) {
-        this.setState({
-          h,
-          m
-        }, () => {
-          onChange('Invalid date');
-          return;
-        });
-      }
-      if(timeToSend !== 'Invalid date') {
-        if (!propValue) {
-          onChange(timeToSend);
-        } else if(!anotherDate){
-          onChange(timeToSend)
-        } else {
-          onChange(timeToSend)
-        }
-      }
+      return
     }
+    const isValidDate = this.dataValidation(value);
+    this.setState({
+      isValidDate
+    }, () => onChange(isValidDate ? this.getUnixTimeDate(value) : 'Invalid date'))
   }
 
   handleInputChange(e) {
@@ -177,12 +167,12 @@ class SelectingFormValuesForm extends Component {
     const h = propValue &&  !isInvalidDate? time.hour() : moment().hour() + 1;
     const m = propValue && !isInvalidDate? time.minutes() : moment().minutes();
     const timeToSend = Number(moment(value, 'DD.MM.YYYY').hour(h).minute(m).format('X'));
+    // @TODO ppc
     const dateFormate = inputMask === '99.99.9999' ? 'DD.MM.YYYY' : 'DD.MM';
     const checkTime =  moment(value, dateFormate, true).isValid();
     this.setState({
       stateInputValue: value,
-      inputMask,
-      showTime: showTime ? true : month ? true : false
+      showTime: !!showTime || !!month
     }, () => {
       this.dateInput.querySelector('input').focus();
     })
@@ -191,25 +181,13 @@ class SelectingFormValuesForm extends Component {
   handleChangeTime(e, type) {
     const {target: {value}} = e;
     const {value: propValue, onChange} = this.props;
-    const {anotherDate} = this.state;
-    const unixFormat = moment.unix(propValue);
+    const {anotherDate, currentValue} = this.state;
+    const isValidDate = propValue !== 'Invalid date';
+    const unixFormat = moment.unix(isValidDate ? propValue : currentValue);
     const time = type === 'h' ? unixFormat.hour(Number(value)) : unixFormat.minute(Number(value));
-    if (propValue !== 'Invalid date') {
-      if (!anotherDate) {
-        this.setState({
-          currentValue: Number(time.format('X')),
-          [type]: false
-        }, () => onChange(Number(time.format('X'))));
-      } else {
-        this.setState({
-          [type]: false
-        }, () => onChange(Number(time.format('X'))))
-      }
-    } else {
-      this.setState({
-        [type]: value
-      })
-    }
+    this.setState({
+      currentValue: Number(time.format('X'))
+    }, () => isValidDate ? onChange(Number(time.format('X'))) : 'Invalid date');
   }
 
   getNumbers(type) {
@@ -236,6 +214,66 @@ class SelectingFormValuesForm extends Component {
     return result;
   }
 
+  dataValidation(value) {
+    // если пришло '' то это валидно, используется для поля Опубликовать сейчас
+    if (value === '') {
+      return true
+    }
+    // Ветка для unix формата даты
+    if (typeof value === 'number') {
+      // создем дату и валидируем её
+      const isValidUnixDate = moment.unix(value).isValid();
+      return isValidUnixDate
+    } else if (typeof value === 'string') {
+      // ветка для даты полученной через date-input
+      const format = value.length < 6 ? 'DD.MM' : 'DD.MM.YYYY';
+      // создаем дату и валидируем её
+      const isValidDate = moment(value, format, true).isValid();
+      console.table({
+        format,
+        isValidDate
+      });
+      return isValidDate;
+    }
+    // так как остальные типы данных являются невалидными
+    return false;
+  }
+
+  getUnixTimeDate(value) {
+    const format = value.length < 6 ? 'DD.MM' : 'DD.MM.YYYY';
+    return moment(value, format).unix();
+  }
+
+  correctTime(value, checkBeforeTime = false, unixTime) {
+    const now = moment();
+    const isNowDay = value === now.format('D-MMM-dddd');
+    let currentHour;
+    let currentMinutes;
+    if (checkBeforeTime) {
+      // для кейса когда выбираем текущий день, и время указанное в timestamp уже прошло
+      currentHour = (isNowDay &&  unixTime.hours() < moment().hours()) ? moment().hours() : unixTime.hour();
+      currentMinutes = (isNowDay && unixTime.minutes() < moment().minutes()) ? moment().minutes() : unixTime.minute();
+    } else {
+      const nextHour = now.hour() + 1;
+      // кейс когда время суток 23 часа
+      const checkHour = nextHour < 24;
+      currentHour = nextHour;
+      currentMinutes = now.minutes();
+      if (isNowDay) {
+        currentHour = checkHour ? nextHour : 23;
+        currentMinutes = checkHour ? currentMinutes : 59;
+      }
+    }
+    return {
+      hour: currentHour,
+      min: currentMinutes
+    }
+  }
+
+  correctInputValue(value) {
+
+  }
+
   render() {
     const {value, placeholder} = this.props;
     const {
@@ -245,25 +283,36 @@ class SelectingFormValuesForm extends Component {
       beforeMoment,
       onlyShow,
       showTime,
-      h,
-      m
+      isValidDate
     } = this.state;
-    let valueHour;
-    let valueMin;
     const now = moment();
     const unixValue = moment.unix(value);
-    const valueDate = value ? unixValue.format('D-MMM-dddd') : 'Опубликовать сейчас';
+    const currentUnixValue = moment.unix(currentValue);
+    const valueDate = value && isValidDate ? unixValue.format('D-MMM-dddd') : value === '' ? 'Опубликовать сейчас' : currentUnixValue.format('D-MMM-dddd');
+    const valueHour = value && isValidDate ? unixValue.hour() : moment.unix(currentValue).hour();
+    const valueMin = value && isValidDate ? unixValue.minute() : moment.unix(currentValue).minute();
     // @TODO здесь должна быть логика учитывающая час при > 23:00
-    if (value !== 'Invalid date') {
+    // @TODO здесь эта логика не нужна, зачем она???
+    /*
+    if (isValidDate) {
+      //@TODO здесь пересмотреть логику возможно now.hour можно вынести в функцию correctTime
       valueHour = value ? unixValue.hour() : now.hour() + 1;
       valueMin = value ? unixValue.minute() : now.minutes();
     } else {
       valueHour = h;
       valueMin = m;
     }
+    */
     const timeClass = classnames({
       'time-select': true,
       'hidden': !showTime
+    });
+    const dateTimeSelectClass = classnames({
+      'hidden': anotherDate
+    });
+    const dateInputClass = classnames({
+      'hidden': !anotherDate,
+      'time-select_has-error': !isValidDate
     });
     console.table({
       value,
@@ -271,33 +320,31 @@ class SelectingFormValuesForm extends Component {
       valueDate,
       valueHour,
       valueMin,
-      anotherDate,
-      stateInputValue,
       currentValue,
-      currentValueFormat: moment.unix(currentValue).format(),
-      beforeMoment
+      currentValueFormat: moment.unix(currentValue).format()
     });
     return (
       <FormGroup>
-        <ControlLabel>{`${placeholder}${beforeMoment}`}</ControlLabel>{!onlyShow ?<div>
-        {!anotherDate ?
-          <FormControl componentClass="select" value={valueDate} onChange={(e) => this.handleChange(e)}>
-            {this.items.map((item, index) => <option value={item}>{item}</option>)}
-          </FormControl> : anotherDate ?
-              <div ref = {(input) => this.dateInput = input}><FormControl
-                value = {stateInputValue}
-                onChange={(e) => this.handleInputChange(e)}
-                onBlur={(e) => this.handleBlur(e)}
-                placeholder="DD.MM"
-              /></div> : null}
-          <div className={timeClass}>
-            <FormControl componentClass="select" value={valueHour} onChange={(e) => this.handleChangeTime(e, 'h')}>
-              {this.getNumbers('hours').map((item, index) => <option value={item < 10 ? item[1] : item}>{item}</option>)}
-            </FormControl>
-            <FormControl componentClass="select" value={valueMin} onChange={(e) => this.handleChangeTime(e, 'm')}>
-              {this.getNumbers('minutes').map((item, index) => <option value={item < 10 ? item[1] : item}>{item}</option>)}
-            </FormControl>
-          </div></div> : null}
+        <ControlLabel>{`${placeholder}${beforeMoment}`}</ControlLabel>{!onlyShow ? <div>
+        <FormControl componentClass="select" className={dateTimeSelectClass} value={valueDate} onChange={(e) => this.handleChange(e)}>
+          {this.items.map((item, index) => <option key={index} value={item}>{item}</option>)}
+        </FormControl>
+        <div className={dateInputClass} ref = {(input) => this.dateInput = input}>
+          <FormControl
+            value = {stateInputValue}
+            onChange={(e) => this.handleInputChange(e)}
+            onBlur={(e) => this.handleBlur(e)}
+            placeholder="DD.MM"
+          />
+        </div>
+        <div className={timeClass}>
+          <FormControl componentClass="select" value={valueHour} onChange={(e) => this.handleChangeTime(e, 'h')}>
+            {this.getNumbers('hours').map((item, index) => <option key={index} value={item < 10 ? item[1] : item}>{item}</option>)}
+          </FormControl>
+          <FormControl componentClass="select" value={valueMin} onChange={(e) => this.handleChangeTime(e, 'm')}>
+            {this.getNumbers('minutes').map((item, index) => <option key={index} value={item < 10 ? item[1] : item}>{item}</option>)}
+          </FormControl>
+        </div></div> : null}
       </FormGroup>
     )
   }
