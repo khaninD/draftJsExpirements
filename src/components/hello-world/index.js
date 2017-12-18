@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import SelectingFormValuesForm from './date.js';
+import Pick from './pick.js';
 import moment from 'moment';
 
 class Root extends Component {
@@ -10,17 +11,17 @@ class Root extends Component {
     }
   }
 
-  change(value) {
+  change = value => {
     this.setState({
       value
     })
-  }
+  };
 
 
   render() {
     const {value} = this.state;
     return (
-      <SelectingFormValuesForm value={value} onChange={this.change.bind(this)} />
+      <SelectingFormValuesForm value={value} onChange={this.change} />
     )
   }
 }

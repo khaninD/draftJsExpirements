@@ -65,3 +65,24 @@ ul, li {
 .time-select_has-error > input {
     background: red;
 }
+
+.date-time-select {
+    display: flex;
+}
+
+.date-time-select__input-date {
+    flex-grow: 1;
+}
+
+.date-time-select__time-select {
+    min-width: 140px;
+    display: flex;
+}
+
+.date-time-select__time {
+    padding-right: 12px!important;
+}
+
+.time-select_has-error input{
+    background: #a94442;
+}

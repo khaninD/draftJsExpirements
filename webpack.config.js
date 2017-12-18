@@ -22,7 +22,7 @@ module.exports = {
     app: './src/index.js'
   },
   output: {
-    filename: 'js/[name].bundle.js',
+    filename: '[name].bundle.js',
     path: path.resolve(__dirname, './dist')
   },
   module: loaders(),
